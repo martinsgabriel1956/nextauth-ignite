@@ -17,7 +17,7 @@ interface SignInCredentials {
 interface AuthContextData {
   signIn(credentials: SignInCredentials): Promise<void>;
   isAuthenticated: boolean;
-  user: User;
+  user?: User;
 }
 
 interface AuthProviderProps {
@@ -47,13 +47,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await api.post("sessions", { email, password });
 
-      const { token, refreshToken, permissions, roles } = await response.data;
+      const { token, refreshToken, permissions, roles } = response.data;
 
       setCookie(undefined, "nextauth.token", token, {
         maxAge: 60 * 60 * 24 * 30, // 30 days
         path: "/",
       });
-      setCookie(undefined, "nextauth.refreshToken", refreshToken);
+      setCookie(undefined, "nextauth.refreshToken", refreshToken, {
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        path: '/',
+      });
 
       setUser({
         email,
