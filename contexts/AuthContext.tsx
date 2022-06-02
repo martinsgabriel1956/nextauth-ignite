@@ -1,5 +1,5 @@
 import { createContext, ReactNode, useEffect, useState } from "react";
-import { setCookie, parseCookies } from "nookies";
+import { setCookie, parseCookies, destroyCookie } from "nookies";
 import Router from "next/router";
 import { api } from "../services/api";
 
@@ -26,34 +26,45 @@ interface AuthProviderProps {
 
 export const AuthContext = createContext({} as AuthContextData);
 
+export const signOut = () => {
+  destroyCookie(undefined, "nextauth:token");
+  destroyCookie(undefined, "nextauth:refreshToken");
+
+  Router.push('/')
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User>();
 
   const isAuthenticated = !!user;
 
   useEffect(() => {
-    const { "nextauth.token": token } = parseCookies();
+    const { "nextauth:token": token } = parseCookies();
 
     if (token) {
-      api.get("/me").then((res) => {
-        const { email, permissions, roles } = res.data;
+      api.get("/me")
+        .then((res) => {
+          const { email, permissions, roles } = res.data;
 
-        setUser({ email, permissions, roles });
-      });
+          setUser({ email, permissions, roles });
+        })
+        .catch(() => {
+          signOut();
+        })
     }
   }, []);
 
   async function signIn({ email, password }: SignInCredentials) {
     try {
-      const response = await api.post("sessions", { email, password });
+      const response = await api.post("/sessions", { email, password });
 
       const { token, refreshToken, permissions, roles } = response.data;
 
-      setCookie(undefined, "nextauth.token", token, {
+      setCookie(undefined, "nextauth:token", token, {
         maxAge: 60 * 60 * 24 * 30, // 30 days
         path: "/",
       });
-      setCookie(undefined, "nextauth.refreshToken", refreshToken, {
+      setCookie(undefined, "nextauth:refreshToken", refreshToken, {
         maxAge: 60 * 60 * 24 * 30, // 30 days
         path: '/',
       });
@@ -64,7 +75,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         roles,
       });
 
-      api.defaults.headers.common["Authorization"] = token;
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       Router.push("/dashboard");
     } catch (err) {
